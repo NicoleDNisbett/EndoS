@@ -1,0 +1,291 @@
+---
+title: "Endometriosis Survey Analysis"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+fontsize: 14pt
+
+---
+```{r libs, echo=FALSE, message=FALSE, include=FALSE}
+source("global.R")
+library(gridExtra)
+
+```
+
+```{r functions, echo=FALSE, message=FALSE, include=FALSE, cache=TRUE}
+endoD.file=read_csv("/Users/nicolenisbett/OneDrive - University of Leeds/PhD/Data/Surveys/EndoDiagnosed.csv")
+endoS.file=read_csv("/Users/nicolenisbett/OneDrive - University of Leeds/PhD/Data/Surveys/EndoSupport.csv")
+endoD.comments=get_comments(endoD.file, "Diagnosed")
+endoD.corpus=clean_corpus(prep_corpus(endoD.comments))
+endoD.corpus.df=get_corpus_df(endoD.corpus)
+endoD.frequencies=term_stats(endoD.corpus)
+endoD.dtm=get_dtm(endoD.corpus)
+endoD.dtm.bigram=get_dtm_bigram(endoD.corpus)
+
+ud_model <- udpipe_download_model(language = "english")
+ud_model <- udpipe_load_model(ud_model$file_model)
+endoD.ud=get_ud_data(endoD.comments)
+endoD.7topics=get_topic_model(endoD.dtm, 3)
+endoD.7topics.bigram=get_topic_model(endoD.dtm.bigram, 3)
+endoD.idf = get_topic_idf(endoD.7topics, endoD.comments)
+
+endoD.readability=get_readability(endoD.comments)
+endoD.ages=estimate_ages(endoD.ud, endoD.readability)
+
+endoS.comments=get_comments(endoS.file, "Support")
+endoS.corpus=clean_corpus(prep_corpus(endoS.comments))
+endoS.corpus.df=get_corpus_df(endoS.corpus)
+endoS.frequencies=term_stats(endoS.corpus)
+endoS.dtm=get_dtm(endoS.corpus)
+endoS.dtm.bigram=get_dtm_bigram(endoS.corpus)
+
+endoS.ud=get_ud_data(endoS.comments)
+endoS.7topics=get_topic_model(endoS.dtm, 3)
+endoS.7topics.bigram=get_topic_model(endoS.dtm.bigram, 3)
+endoS.idf = get_topic_idf(endoS.7topics, endoS.comments)
+
+endoS.readability=get_readability(endoS.comments)
+endoS.ages=estimate_ages(endoS.ud, endoS.readability)
+
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This report gives a brief summary of the textual analysis of the submissions to the survey on Endometriosis.
+
+
+### Summary of Key Points
+
+  * A total of **`r nrow(endoD.comments) + nrow(endoS.comments)`** comments were posted over two questions.
+  * Approximately GCSE-level educated participants.
+  * Generally quite negative submissions with fear and sadness also being common sentiments. 
+
+  
+
+
+## Frequency Analysis {.tabset}
+
+The diagnosis responses had an average of **`r round(mean(get_each_comment_length(endoD.comments)$Length))`** words in each compared to **`r round(mean(get_each_comment_length(endoS.comments)$Length))`** for support questions. 
+
+The most common adjectives, phrases and pairs of words for each question are displayed below.
+
+**Question 1: Diagnosed**
+
+```{r frequencies, echo=FALSE,  tidy=TRUE, fig.width=10}
+{grid.arrange(display_adjectives(endoD.ud, 15), display_keywords(endoD.ud, 15), ncol=2)}
+```
+
+**Question 2: Support**
+
+```{r frequencies2, echo=FALSE,  tidy=TRUE, fig.width=10}
+{grid.arrange(display_adjectives(endoS.ud, 15), display_keywords(endoS.ud, 15), ncol=2)}
+```
+
+
+A network of the most frequent consecutive word pairs (bigrams) is shown below. 
+
+
+
+### Diagnosed
+
+The main responses included themes of the different stages of endometriosis and the time it took to be diagnosed. Certain issues such as "ectopic pregnancy", "brain fog", and "blood loss" were raised, as well as issues to do with surgeries and the personal impact the diagnosis has on the person.
+
+```{r bigrams, echo=FALSE, tidy=TRUE, fig.width=15, fig.height=10}
+display_bigrams(endoD.comments, 15, "Diagnosed Discussion")
+
+```
+
+
+
+### Support
+
+A range of different word pairs appear in responses to question 2 including "didn't understand" and "lost jobs". However some seem more positive with "flexible hours", and "reasonable adjustments".
+
+```{r tweetbigrams, echo=FALSE, tidy=TRUE, fig.width=15, fig.height=10}
+display_bigrams(endoS.comments, 10, "Support Discussion")
+
+```
+
+***
+
+## Topic Extraction
+
+A plot of 10 words most associated with one of 3 topics are shown below. Each coloured bar chart represents a single topic. 
+
+
+<!---
+Topic 8 is primarily about the technicalities of the application process with words such as "home office", "6 months", "application process", and "long tedious". Topic 6 is primarily about the lengthy application process and the costs associated with this, for example "paper work", "took long", "long expensive". 
+--> 
+A brief summary of those topics are:
+
+Topic Number  | Common words (Q1) | Common words (Q2) 
+-------- | ------------------ | ------------------
+Topic 1  | isolation, resection, veins | fix, painkiller
+Topic 2  | gyny, aches, heartache | inclusive, therapist
+Topic 3  | micarrying, councellor | mri, consent, independence
+
+**Diagnosis**
+
+```{r, echo=FALSE, message = FALSE}
+#display_top_topics_btm(EAC.btm, 10, "EAC Discussion")
+
+endoD.idf %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = factor(word, levels = rev(unique(word)))) %>% 
+  group_by(Topic) %>% 
+  top_n(10) %>% 
+  ungroup() %>%
+  ggplot(aes(word, tf_idf, fill = as.factor(Topic))) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~Topic, ncol = 4, scales = "free") +
+  coord_flip()
+
+```
+
+**Support**
+
+```{r, echo=FALSE, message = FALSE}
+#display_top_topics_btm(EAC.btm, 10, "EAC Discussion")
+
+endoS.idf %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = factor(word, levels = rev(unique(word)))) %>% 
+  group_by(Topic) %>% 
+  top_n(10) %>% 
+  ungroup() %>%
+  ggplot(aes(word, tf_idf, fill = as.factor(Topic))) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~Topic, ncol = 4, scales = "free") +
+  coord_flip()
+
+```
+<!--
+```{r twordcloud, echo=FALSE, message=FALSE, warning=FALSE}
+myColourHue= function(n=10) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 45, c = 100)[1:n]
+}
+get_topic_wordcloud(endoD.7topics.bigram)
+```
+-->
+
+
+
+Following the link below will provide an alternative topic model visualisation which is split into two sections:
+
+  * **Left** - showing topic distances from each other based on the types of words in each,
+
+  * **Right** – showing the top 30 words pairs in each topic (red bar) and overall in the dataset (blue bar). I recommend setting the relevance metric to 0.6 to get a more representative list of words in each topic.
+
+This visualisation is interactive, hover over each topic number to view the words in each topic, or select each word to view which topics it is relevant to.  
+
+https://nicolednisbett.github.io/EndoD/#topic=0&lambda=0.60&term=
+<!--
+```{r servis, echo=FALSE, message=FALSE, warning=FALSE}
+serVis(topicmodels2LDAvis(endoS.7topics), out.dir="a", open.browser = FALSE)
+htmltools::includeHTML("a/index.html")
+```
+
+<head>
+  <script src="a/d3.v3.js"></script>
+  <script src="a/ldavis.js"></script>
+  <link rel="stylesheet" type="text/css" href="a/lda.css">
+</head>
+<body>
+  <div id = "mydiv"></div>
+  <script>
+    var vis = new LDAvis("#mydiv", "lda.json");
+  </script>
+</body>
+
+
+<iframe width="1000" height="800" src="a/index.html" frameborder="0"></iframe>
+
+-->
+
+
+## Sentiment Analysis 
+
+The wordcloud below gives the most popular words associated with positive and negative sentiments in the survey. Specific comments
+which are associated with the most popular sentiments are listed below.
+
+### Sentiment Clouds {.tabset}
+
+#### Diagnosed
+```{r swordcloud, echo=FALSE, message=FALSE, warning=FALSE}
+get_sentiments_wordcloud(get_bingnrc_word_frequencies(endoD.corpus.df, "bing"), "bing")
+```
+
+
+#### Support
+
+```{r tweetwordcloud, echo=FALSE, message=FALSE, warning=FALSE}
+get_sentiments_wordcloud(get_bingnrc_word_frequencies(endoS.corpus.df, "bing"), "bing")
+```
+
+
+### Sentiment Categories {.tabset}
+
+The  **NRC** sentiment lexicon uses categorical scale to measure 2 sentiments (positive and negative), and 8 emotions (anger, anticipation, disgust, trust, joy, sadness, fear, and suprise).
+Examples of words and comments in these sentiment categories are below. 
+
+Both questions were mainly *negative*, *sadness* and *fear* however the second question to do with support in the workplace was slightly more positive than the first question about diagnosis.
+
+```{r nrc2, echo=FALSE, message=FALSE, fig.width=10}
+  grid.arrange(
+    plot_bingnrc_distributions(get_bingnrc_document_frequencies(endoD.corpus,"nrc"), "Diagnosed Discussion", "nrc"),
+    
+    plot_bingnrc_distributions(get_bingnrc_document_frequencies(endoS.corpus,"nrc"), "Support Discussion", "nrc")
+  , ncol=2)
+```
+
+
+Hover over the plot below to read the content of the comments within each sentiment category. Longer comments may not show in their entirety. 
+
+#### Diagnosed
+
+```{r comments,echo=FALSE, message=FALSE, warning=FALSE }
+ggplotly(display_topic_comments(get_sentiment_comments(endoD.corpus.df, endoD.comments, "nrc"), "Diagnosed Discussion"), width=1000, height = 600) %>% config(displayModeBar=FALSE) %>% hide_legend()
+```
+
+
+***
+
+
+An example of a comment categorised as **negative**
+
+  > `r endoD.comments[2825,][[1]]`
+  
+An example of a comment categorised as **sadness**
+
+  > `r endoD.comments[1718,][[1]]`
+
+An example of a comment categorised as **fear**
+
+  > `r endoD.comments[2417,][[1]]`
+
+#### Support
+
+```{r tweets,echo=FALSE, message=FALSE, warning=FALSE }
+ggplotly(display_topic_comments(get_sentiment_comments(endoS.corpus.df, endoS.comments, "nrc"), "Support Discussion"), width=1000, height = 600) %>% config(displayModeBar=FALSE) %>% hide_legend()
+```
+
+
+
+An example of a comment categorised as **negative**
+
+  > `r endoD.comments[695,][[1]]`
+  
+An example of a comment categorised as **positive**
+
+  > `r endoD.comments[414,][[1]]`
+
+An example of a comment categorised as **sadness**
+
+  > `r endoD.comments[2551,][[1]]`
